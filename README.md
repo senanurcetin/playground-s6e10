@@ -10,7 +10,8 @@ Generic tabular pipeline (`pipeline.py`), tested end to end on synthetic data.
 4. `python pipeline.py train --models lgb,xgb,cat` (add `--original PATH` once the source dataset is identified —
    original rows only ever train, never score).
 5. `python pipeline.py blend` → `work/submission.csv`; submit.
-6. Early public notebook (week 1 is when votes happen): "Adversarial validation says your CV will / won't transfer"
+   (Steps 2–5 in one go for a fast LightGBM baseline: `bash launch.sh`.)
+6. Early public notebook: `python build_notebook.py` → "S6E10: Will Your CV Transfer? Adversarial Validation First" (tested; week 1 is when votes happen)
    — fits the honest-validation niche.
 
 Data stays outside OneDrive: `C:/Users/MONSTER/kaggle-data/<competition>/`.
