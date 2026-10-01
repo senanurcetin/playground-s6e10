@@ -14,7 +14,7 @@ OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).with_name("s6e1
 cells = []
 A = cells.append
 
-A(M(r'''# S6E10: Will Your CV Transfer? Adversarial Validation First
+A(M(r'''# S6E10: Will Your CV Transfer? Check This First
 
 Playground datasets are generated from an original dataset, and the generator does not always
 reproduce the same distribution in train and test. Before tuning anything, it is worth asking one
