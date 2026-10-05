@@ -22,8 +22,23 @@ Data stays outside OneDrive: `C:/Users/MONSTER/kaggle-data/<competition>/`.
 |---|---|---|
 | LightGBM baseline | 0.95904 | **0.95862** |
 | blend: LGB 0.5 + LGB with original data 0.25 + XGB 0.25 | 0.95918 | 0.95855 |
+| LGB + original-data target encoding per feature (`fe.py`, variant `ote`) | **0.96008** | pending |
 
 Adversarial AUC 0.500, so CV is the guide; the LB is a small sample. The blend's +0.00014 CV did not show on
 the public LB (−0.00007): both gaps are inside noise. The original dataset (teejmahal20, 129,880 rows) adds
 nothing measurable. CatBoost skipped (GPU memory shared with other jobs). Next: different model families or
 target-encoded interactions rather than more of the same trees.
+
+### Feature screen (`python fe.py screen`; same LightGBM, same 5 folds, lr 0.1)
+
+| variant | CV AUC | vs base | folds better |
+|---|---|---|---|
+| base (raw features) | 0.95874 | | |
+| agg: rating sum/std/zero/five counts, delay sum/diff | 0.95848 | −0.00025 | 0/5 |
+| catr: ratings as categorical | 0.95867 | −0.00007 | 2/5 |
+| **ote: per-feature target mean + count from the original dataset** | **0.95978** | **+0.00104** | **5/5** |
+| ote2: the same for 45 feature pairs (no single-feature encodings) | 0.95859 | −0.00014 | 2/5 |
+
+Appending the original rows as training data added nothing; using them as a lookup table of
+smoothed satisfaction rates per value adds +0.001 on every fold. The original set is disjoint from
+train and test, so the encoding needs no out-of-fold scheme and cannot leak competition labels.
