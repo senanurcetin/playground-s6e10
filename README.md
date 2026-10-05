@@ -23,8 +23,9 @@ Data stays outside OneDrive: `C:/Users/MONSTER/kaggle-data/<competition>/`.
 | LightGBM baseline | 0.95904 | 0.95862 |
 | blend: LGB 0.5 + LGB with original data 0.25 + XGB 0.25 | 0.95918 | 0.95855 |
 | LGB + original-data target encoding per feature (`fe.py`, variant `ote`) | 0.96008 | 0.95965 |
-| LGB, variant `ote+og+route+cnt+te` | **0.96092** | **0.96070** |
+| LGB, variant `ote+og+route+cnt+te` | 0.96092 | 0.96070 |
 | blend: that model 0.714 + `ote` 0.143 + LGB with original rows 0.143 | 0.96110 | 0.96065 |
+| **LR stack on logits**: 2 LGB (local) + XGB + CatBoost + 3 RealMLP (Kaggle GPU, `kaggle_stack/`) | **0.96139** | **0.96097** |
 
 Adversarial AUC 0.500, so CV is the guide; the LB is a small sample. The blend's +0.00014 CV did not show on
 the public LB (−0.00007): both gaps are inside noise. The original dataset (teejmahal20, 129,880 rows) adds
@@ -78,3 +79,20 @@ LightGBMs that differ only in seed and column sampling (one split, so indicative
 With fold-averaged predictions the blend no longer beats the better member (0.95964 vs 0.95965), although
 its OOF says +0.00025. Seed/sampling diversity is already absorbed by fold averaging; a stack has to earn its
 gain from genuinely different model families.
+
+### Stack (`kaggle_stack/stack_gpu.py` on a Kaggle GPU, 38 min; `python stack.py <outputs>`)
+
+| member | OOF AUC | stack weight |
+|---|---|---|
+| RealMLP, engineered features, 6 epochs | 0.96108 | 0.280 |
+| XGBoost, engineered features (GPU) | 0.96105 | 0.269 |
+| RealMLP, engineered features, seed 1 | 0.96105 | −0.029 |
+| LightGBM, engineered features (local) | 0.96092 | 0.004 |
+| CatBoost, engineered features (GPU) | 0.96090 | 0.123 |
+| RealMLP, public recipe (raw columns + categorical twins) | 0.96070 | 0.285 |
+| LightGBM, `ote` only (local) | 0.96008 | 0.069 |
+
+Stack cross-validated 0.96139 (+0.00031 over the best member); public LB 0.96097 (+0.00027 over the best
+single submission). Unlike the seed blends, this gain reached the LB: the weight sits on different model
+families (RealMLP on raw columns, XGBoost, CatBoost), and the second seed of the same RealMLP gets none.
+RealMLP picks its epoch on an internal 5% split, never on the scored fold.
