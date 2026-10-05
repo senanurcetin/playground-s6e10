@@ -98,3 +98,18 @@ families (RealMLP on raw columns, XGBoost, CatBoost), and the second seed of the
 RealMLP picks its epoch on an internal 5% split, never on the scored fold.
 
 Public write-up of the blend-gap experiment (3 splits, raw features): [S6E10: Why Your OOF Blend Gain Vanishes on Test](https://www.kaggle.com/code/senanuretin/s6e10-why-your-oof-blend-gain-vanishes-on-test).
+
+### Auxiliary-task features (idea: goodpjw2008, S6E10 Part 4)
+
+Predict each rating and three categoricals from the other 20 columns (train+test, no label, 5-fold
+cross-fitted XGBoost on a Kaggle GPU) and add the expected rating sum_k k*P(k) as 13 features.
+
+| member | before | with expected ratings | folds better |
+|---|---|---|---|
+| XGBoost | 0.96105 | 0.96116 | 4/5 |
+| RealMLP | 0.96108 | 0.96118 | 4/5 |
+| CatBoost | 0.96090 | 0.96101 | 4/5 |
+| LightGBM (local, `fe.py` variant `+aux`) | 0.96092 | 0.96108 | 5/5 |
+
+Stack: 0.96139 → **0.96150** (+0.00011, all five folds up, +0.00009 to +0.00012). Submitted 03:05 on
+2026-10-06 (`work/submit_at_0305.sh`; daily submissions reset at 00:00 UTC).

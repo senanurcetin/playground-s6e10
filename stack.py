@@ -16,7 +16,7 @@ from sklearn.model_selection import StratifiedKFold
 
 import pipeline as P
 
-LOCAL = ["lgb_route", "lgb_ote"]
+LOCAL = ["lgb_route", "lgb_ote", "lgb_aux"]
 
 
 def logit(p):
