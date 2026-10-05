@@ -7,6 +7,7 @@ folds is noise at this sample size.
   python fe.py screen [--variants base,agg,catr,ote,ote2,all]   # the first variant is the reference
     blocks, joined with +: agg catr ote ote2 | og (original-only model) route (per-distance profile)
     cnt (value counts) te (fold-safe target encoding of distance/age keys) mb (max_bin 4095)
+    aux (expected rating given the other columns; work/aux_features.parquet from kaggle_stack, or $AUX_PATH)
   python fe.py full --variant all --tag _fe      # lr 0.03, saves oof/pred for pipeline.py blend
 """
 import argparse
@@ -147,6 +148,10 @@ def build(X, Xt, orig, target, variant):
         feats.append(route_profile(A))
     if "cnt" in parts:
         feats.append(counts(A))
+    if "aux" in parts:                 # expected value of each rating given the other 20 columns (kaggle_stack)
+        aux = pd.read_parquet(os.environ.get("AUX_PATH", str(P.OUT / "aux_features.parquet")))
+        assert len(aux) == len(A)
+        feats.append(aux[[c for c in aux.columns if c.startswith("aux_ev_")]].reset_index(drop=True))
     if "agg" in parts:
         feats.append(agg(A))
     if "ote" in parts:

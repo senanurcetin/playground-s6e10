@@ -161,8 +161,43 @@ def nn_frame(X):
     return X, cat_cols
 
 
+def aux_features():
+    """Auxiliary tasks (idea: goodpjw2008, S6E10 Part 4): predict each rating and three categoricals from the
+    other 20 columns, on train+test together and without the label, 5-fold cross-fitted so no row is predicted
+    by a model that saw it. Kept: the expected value of each rating, sum_k k*P(k)."""
+    import xgboost as xgb
+    coded = A.copy()
+    for c in CATS:
+        coded[c] = coded[c].astype("category").cat.codes
+    out = pd.DataFrame(index=A.index)
+    for c in RATINGS + ["Class", "Type of Travel", "Customer Type"]:
+        values = np.sort(coded[c].unique())
+        yc = np.searchsorted(values, coded[c].values)
+        k, others = len(values), [f for f in FEATS if f != c]
+        P = np.zeros((len(A), k), dtype=np.float32)
+        for a, b in KFold(5, shuffle=True, random_state=0).split(coded):
+            m = xgb.XGBClassifier(n_estimators=30 if SMOKE else 300, learning_rate=0.1, max_depth=6, subsample=0.8,
+                                  colsample_bytree=0.7, tree_method="hist", device=DEVICE, random_state=0,
+                                  objective="multi:softprob" if k > 2 else "binary:logistic")
+            m.fit(coded.iloc[a][others], yc[a])
+            P[b] = m.predict_proba(coded.iloc[b][others])
+        if c in RATINGS:
+            out[f"aux_ev_{c}"] = P @ values.astype(np.float32)
+        else:
+            out[f"aux_p1_{c}"] = P[:, -1] if k == 2 else P @ np.arange(k, dtype=np.float32)
+        log(f"aux {c:34s} accuracy {(P.argmax(1) == yc).mean():.3f}")
+    return out.astype(np.float32)
+
+
 NN_RAW, NN_CATS = nn_frame(A)
 NN_V4, _ = nn_frame(pd.concat([A, OTE, OG, ROUTE, CNT], axis=1))
+MEMBER_SET = "aux"                 # "base": the first five members; "aux": members with auxiliary-task features
+if MEMBER_SET == "aux":
+    AUX = aux_features()
+    AUX.to_parquet(f"{OUT}/aux_features.parquet")    # also used by the local LightGBM
+    EV = [c for c in AUX.columns if c.startswith("aux_ev_")]
+    TREE_AUX = pd.concat([TREE, AUX[EV]], axis=1)
+    NN_AUX, _ = nn_frame(pd.concat([A, OTE, OG, ROUTE, CNT, AUX[EV]], axis=1))
 
 
 # ----------------------------------------------------------------------------- members
@@ -231,13 +266,20 @@ def run(name, fit, X, use_te):
     log(f"{name:14s} OOF AUC {roc_auc_score(y, oof):.5f} folds {np.round(aucs, 5).tolist()} ({time.time() - t0:.0f}s)")
 
 
-MEMBERS = [
-    ("xgb_route", fit_xgb, TREE, True),
-    ("cat_route", fit_cat, TREE, True),
-    ("realmlp_v4", fit_realmlp(42, n_epochs=6), NN_V4, True),
-    ("realmlp_pub", fit_realmlp(42), NN_RAW, False),
-    ("realmlp_v4_s1", fit_realmlp(1, n_epochs=6), NN_V4, True),
-]
+MEMBERS = {
+    "base": [
+        ("xgb_route", fit_xgb, TREE, True),
+        ("cat_route", fit_cat, TREE, True),
+        ("realmlp_v4", fit_realmlp(42, n_epochs=6), NN_V4, True),
+        ("realmlp_pub", fit_realmlp(42), NN_RAW, False),
+        ("realmlp_v4_s1", fit_realmlp(1, n_epochs=6), NN_V4, True),
+    ],
+    "aux": [
+        ("xgb_aux", fit_xgb, TREE_AUX, True) if MEMBER_SET == "aux" else None,
+        ("realmlp_aux", fit_realmlp(42, n_epochs=6), NN_AUX, True) if MEMBER_SET == "aux" else None,
+        ("cat_aux", fit_cat, TREE_AUX, True) if MEMBER_SET == "aux" else None,
+    ],
+}[MEMBER_SET]
 for name, fit, X, use_te in MEMBERS:
     try:
         run(name, fit, X, use_te)
