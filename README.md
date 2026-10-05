@@ -22,7 +22,9 @@ Data stays outside OneDrive: `C:/Users/MONSTER/kaggle-data/<competition>/`.
 |---|---|---|
 | LightGBM baseline | 0.95904 | 0.95862 |
 | blend: LGB 0.5 + LGB with original data 0.25 + XGB 0.25 | 0.95918 | 0.95855 |
-| LGB + original-data target encoding per feature (`fe.py`, variant `ote`) | **0.96008** | **0.95965** |
+| LGB + original-data target encoding per feature (`fe.py`, variant `ote`) | 0.96008 | 0.95965 |
+| LGB, variant `ote+og+route+cnt+te` | **0.96092** | **0.96070** |
+| blend: that model 0.714 + `ote` 0.143 + LGB with original rows 0.143 | 0.96110 | 0.96065 |
 
 Adversarial AUC 0.500, so CV is the guide; the LB is a small sample. The blend's +0.00014 CV did not show on
 the public LB (−0.00007): both gaps are inside noise. The original dataset (teejmahal20, 129,880 rows) adds
@@ -42,3 +44,20 @@ target-encoded interactions rather than more of the same trees.
 Appending the original rows as training data added nothing; using them as a lookup table of
 smoothed satisfaction rates per value adds +0.001 on every fold. The original set is disjoint from
 train and test, so the encoding needs no out-of-fold scheme and cannot leak competition labels.
+
+### Round 2 (reference `ote`; same protocol)
+
+| variant | CV AUC | vs ote | folds better |
+|---|---|---|---|
+| ote | 0.95978 | | |
+| + mb: `max_bin` 4095 | 0.95986 | +0.00008 | 3/5 |
+| + og: LightGBM fitted on the original rows only, its probability and logit as features | 0.96004 | +0.00026 | 5/5 |
+| + og + route: per-`Flight Distance` mean of every other feature, and the value's count | 0.96050 | +0.00071 | 5/5 |
+| **+ og + route + cnt + te**: value counts, fold-safe target encoding of distance/age keys | **0.96062** | **+0.00084** | **5/5** |
+| + og + route + cnt + te + mb | 0.96063 | +0.00085 | 5/5 |
+
+`Flight Distance` has ~3.5k distinct values, each repeated hundreds of times: it acts as a route ID, and
+the route profile (no target involved) carries most of the gain. Idea credit: the public notebooks by
+goodpjw2008 ("Route-ID FE + OG-Model Stack") and Дворкин Евгений ("LightGBM CV 5 folds"). Blends whose
+OOF gain is under ~0.0002 have not shown on the public LB twice now: submit the single model unless the
+blend adds a genuinely different model family.
