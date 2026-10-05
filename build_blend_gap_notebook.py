@@ -29,7 +29,12 @@ small, and tests a different one:
 > Part of what a blend buys on OOF is variance reduction, and the fold-averaged test prediction already
 > has it.
 
-The experiment holds out a fake test set, so the effect is measured, not argued.'''))
+The experiment holds out a fake test set, so the effect is measured, not argued.
+
+**Result (three splits):** a blend of two reseeded LightGBMs gains about +0.00023 on OOF but only about
++0.00005 on test predictions built the way submissions are built (fold-averaged). A LightGBM + XGBoost
+blend keeps more: about +0.00030 on OOF, +0.00011 on test. Exact figures vary a little by run; the gap
+between the views is the finding.'''))
 
 A(C(r'''import glob, time
 import numpy as np, pandas as pd
@@ -137,9 +142,13 @@ plt.tight_layout(); plt.show()'''))
 
 A(M(r'''## 3. Is it just public-LB noise?
 
-The public leaderboard is scored on about 20% of the test set (~60k rows). If the noise of a 60k-row
-sample were large next to these gains, the leaderboard could simply be flipping a real gain. Resampling the
-OOF predictions at that size shows how much a blend-minus-single difference moves:'''))
+thisray measured this carefully in
+[S6E10: is your 0.0001 gain real? Noise measured](https://www.kaggle.com/code/thisray/s6e10-is-your-0-0001-gain-real-noise-measured):
+on simulated public splits, two reseeds of the same model come out in the wrong order 44% of the time and a
+0.00011 tweak 16% of the time, while a 0.0005 feature change is always ordered correctly. (The leaderboard
+page does state the share: "approximately 20% of the test data", so ~60k rows.)
+
+The same check for the A+B blend here, resampling its OOF predictions at public-LB size:'''))
 A(C(r'''rng = np.random.default_rng(0)
 oof, yD = keep["oof"], keep["yD"]
 blend = (oof["A"] + oof["B"]) / 2
@@ -152,9 +161,9 @@ for _ in range(300):
 diffs = np.array(diffs)
 print(f"A+B blend vs better member on all OOF rows: {full:+.5f}")
 print(f"on 60k-row samples: sd {diffs.std():.5f}, share with the opposite sign {np.mean(np.sign(diffs) != np.sign(full)):.2f}")'''))
-A(M(r'''A paired difference between two highly correlated predictions moves far less than either score alone.
-At public-LB size its spread is small next to the OOF gain, so sampling noise alone rarely turns a real
-gain into a loss. A blend that loses on the leaderboard more likely never had that gain on test.
+A(M(r'''At ~0.0002 the OOF blend gain is two to three standard deviations of the paired public-LB difference, so
+sampling noise alone would rarely reverse it. My two blends lost by about three. They more likely never had
+the gain on test, which is what section 2 shows.
 
 ## Takeaways
 
@@ -165,8 +174,8 @@ gain into a loss. A blend that loses on the leaderboard more likely never had th
   That stack's gain did reach the leaderboard.
 - **Score candidate blends the way you submit.** Hold out a slice, average your fold models on it, and
   compare there. A 50/50 blend is a cheaper first check than fitted weights.
-- **The leaderboard is less noisy for paired comparisons than it looks.** If a blend loses there by more
-  than a couple of standard deviations of the paired difference, believe it.
+- **Read a leaderboard loss with the paired noise in mind.** Below ~0.0001 the public LB cannot order two
+  submissions (thisray's numbers); a 0.0002 OOF gain that turns into a loss is more likely not there.
 
 Earlier in this series: [S6E10: Will Your CV Transfer? Check This First](https://www.kaggle.com/code/senanuretin/s6e10-will-your-cv-transfer-check-this-first).'''))
 A(C(r'''print(f"total runtime {time.time() - T0:.0f}s")'''))
