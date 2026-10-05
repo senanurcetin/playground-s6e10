@@ -103,7 +103,7 @@ def fit_predict(name, Xtr, ytr, Xva, yva, Xte, task, n_class, cats):
         import xgboost as xgb
         m = xgb.XGBClassifier if task != "regression" else xgb.XGBRegressor
         m = m(n_estimators=5000, learning_rate=0.03, max_depth=7, subsample=0.8, colsample_bytree=0.7,
-              enable_categorical=True, tree_method="hist", device="cuda", early_stopping_rounds=200, random_state=SEED)
+              enable_categorical=True, tree_method="hist", device=os.environ.get("XGB_DEVICE", "cuda"), early_stopping_rounds=200, random_state=SEED)
         m.fit(Xtr, ytr, eval_set=[(Xva, yva)], verbose=False)
     elif name == "cat":
         import catboost as cb
@@ -121,7 +121,7 @@ def fit_predict(name, Xtr, ytr, Xva, yva, Xte, task, n_class, cats):
     return (pv[:, 1], pt[:, 1]) if task == "binary" else (pv, pt)
 
 
-def train(models, folds, original_path=None):
+def train(models, folds, original_path=None, tag=""):
     tr, te, ss, id_col, targets = load()
     target = targets[0]
     task = task_of(tr[target])
@@ -145,8 +145,8 @@ def train(models, folds, original_path=None):
                                  len(classes or []), cats)
             oof[val], pred = pv, pred + pt / folds
         score = mfn(y.iloc[:n_train], oof[:n_train])
-        np.save(OUT / "oof" / f"{name}.npy", oof[:n_train]); np.save(OUT / "pred" / f"{name}.npy", pred)
-        print(f"{name}: CV {mname} {score:.5f} ({time.time() - t0:.0f}s)", flush=True)
+        np.save(OUT / "oof" / f"{name}{tag}.npy", oof[:n_train]); np.save(OUT / "pred" / f"{name}{tag}.npy", pred)
+        print(f"{name}{tag}: CV {mname} {score:.5f} ({time.time() - t0:.0f}s)", flush=True)
     (OUT / "meta.json").write_text(json.dumps({"task": task, "target": target, "id": id_col, "classes": classes}))
 
 
@@ -191,5 +191,6 @@ if __name__ == "__main__":
     ap.add_argument("--models", default="lgb,xgb,cat")
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--original", default=None)
+    ap.add_argument("--tag", default="", help="suffix for saved oof/pred files, e.g. _orig")
     a = ap.parse_args()
-    {"check": check, "train": lambda: train(a.models.split(","), a.folds, a.original), "blend": blend}[a.cmd]()
+    {"check": check, "train": lambda: train(a.models.split(","), a.folds, a.original, a.tag), "blend": blend}[a.cmd]()
