@@ -1,0 +1,5 @@
+{"id": "senanuretin/s6e10-why-your-oof-blend-gain-vanishes-on-test",
+ "title": "S6E10: Why Your OOF Blend Gain Vanishes on Test",
+ "code_file": "s6e10-oof-blend-gain.ipynb", "language": "python", "kernel_type": "notebook",
+ "is_private": "true", "enable_gpu": "true", "enable_internet": "false",
+ "dataset_sources": [], "competition_sources": ["playground-series-s6e10"], "kernel_sources": [], "model_sources": []}
