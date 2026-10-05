@@ -20,9 +20,9 @@ Data stays outside OneDrive: `C:/Users/MONSTER/kaggle-data/<competition>/`.
 
 | submission | CV AUC | public LB |
 |---|---|---|
-| LightGBM baseline | 0.95904 | **0.95862** |
+| LightGBM baseline | 0.95904 | 0.95862 |
 | blend: LGB 0.5 + LGB with original data 0.25 + XGB 0.25 | 0.95918 | 0.95855 |
-| LGB + original-data target encoding per feature (`fe.py`, variant `ote`) | **0.96008** | pending |
+| LGB + original-data target encoding per feature (`fe.py`, variant `ote`) | **0.96008** | **0.95965** |
 
 Adversarial AUC 0.500, so CV is the guide; the LB is a small sample. The blend's +0.00014 CV did not show on
 the public LB (−0.00007): both gaps are inside noise. The original dataset (teejmahal20, 129,880 rows) adds
