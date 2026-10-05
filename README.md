@@ -61,3 +61,20 @@ the route profile (no target involved) carries most of the gain. Idea credit: th
 goodpjw2008 ("Route-ID FE + OG-Model Stack") and Дворкин Евгений ("LightGBM CV 5 folds"). Blends whose
 OOF gain is under ~0.0002 have not shown on the public LB twice now: submit the single model unless the
 blend adds a genuinely different model family.
+
+### Why OOF blend gains did not reach the LB (`python blend_gap.py`)
+
+Public-LB sampling noise does not explain it: on random public-size subsets of the OOF the blend-vs-single
+difference has sd 0.00007, and both blends lost by ~3 sd. The likelier cause is that an OOF prediction comes
+from one fold model while a test prediction already averages five. Check with a 20% fake test set and two
+LightGBMs that differ only in seed and column sampling (one split, so indicative):
+
+| scored on | A | B | blend 50/50 | blend gain over A |
+|---|---|---|---|---|
+| OOF (one fold model per row) | 0.95963 | 0.95969 | 0.95994 | +0.00031 |
+| fake test, single fold model | 0.95892 | 0.95924 | 0.95933 | +0.00041 |
+| fake test, average of 5 fold models | 0.95947 | 0.95965 | 0.95964 | +0.00017 |
+
+With fold-averaged predictions the blend no longer beats the better member (0.95964 vs 0.95965), although
+its OOF says +0.00025. Seed/sampling diversity is already absorbed by fold averaging; a stack has to earn its
+gain from genuinely different model families.
