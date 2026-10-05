@@ -96,3 +96,5 @@ Stack cross-validated 0.96139 (+0.00031 over the best member); public LB 0.96097
 single submission). Unlike the seed blends, this gain reached the LB: the weight sits on different model
 families (RealMLP on raw columns, XGBoost, CatBoost), and the second seed of the same RealMLP gets none.
 RealMLP picks its epoch on an internal 5% split, never on the scored fold.
+
+Public write-up of the blend-gap experiment (3 splits, raw features): [S6E10: Why Your OOF Blend Gain Vanishes on Test](https://www.kaggle.com/code/senanuretin/s6e10-why-your-oof-blend-gain-vanishes-on-test).
