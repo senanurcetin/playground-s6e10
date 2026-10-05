@@ -1,0 +1,6 @@
+{"id": "senanuretin/s6e10-gpu-stack-members",
+ "title": "s6e10-gpu-stack-members",
+ "code_file": "stack_gpu.py", "language": "python", "kernel_type": "script",
+ "is_private": "true", "enable_gpu": "true", "enable_internet": "true",
+ "dataset_sources": ["teejmahal20/airline-passenger-satisfaction"],
+ "competition_sources": ["playground-series-s6e10"], "kernel_sources": [], "model_sources": []}
