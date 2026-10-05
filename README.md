@@ -15,3 +15,15 @@ Generic tabular pipeline (`pipeline.py`), tested end to end on synthetic data.
    — fits the honest-validation niche.
 
 Data stays outside OneDrive: `C:/Users/MONSTER/kaggle-data/<competition>/`.
+
+## Results log (Predicting Airline Satisfaction, AUC, ends 2026-10-31)
+
+| submission | CV AUC | public LB |
+|---|---|---|
+| LightGBM baseline | 0.95904 | **0.95862** |
+| blend: LGB 0.5 + LGB with original data 0.25 + XGB 0.25 | 0.95918 | 0.95855 |
+
+Adversarial AUC 0.500, so CV is the guide; the LB is a small sample. The blend's +0.00014 CV did not show on
+the public LB (−0.00007): both gaps are inside noise. The original dataset (teejmahal20, 129,880 rows) adds
+nothing measurable. CatBoost skipped (GPU memory shared with other jobs). Next: different model families or
+target-encoded interactions rather than more of the same trees.
