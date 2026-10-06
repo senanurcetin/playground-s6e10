@@ -113,3 +113,18 @@ cross-fitted XGBoost on a Kaggle GPU) and add the expected rating sum_k k*P(k) a
 
 Stack: 0.96139 → **0.96150** (+0.00011, all five folds up, +0.00009 to +0.00012); public LB 0.96097 → **0.96120**. Submitted 03:05 on
 2026-10-06 (`work/submit_at_0305.sh`; daily submissions reset at 00:00 UTC).
+
+### Foundation-model members (TabPFN-3.5), from a public dataset
+
+TabPFN-3.5 with the full 560k-row context needs ~17.5 GB for its KV cache and hours per fold on a Kaggle T4,
+so these members come from goodpjw2008's public Kaggle dataset
+[s6e10-tabpfn-member](https://www.kaggle.com/datasets/goodpjw2008/s6e10-tabpfn-member) (same
+`StratifiedKFold(5, shuffle=True, random_state=42)`; its per-fold AUCs reproduce exactly on our folds).
+`stack.py --csv-dir` reads them by id. Thank you to goodpjw2008 and to Prior Labs (TabPFN-3.5 licence:
+non-commercial; Kaggle competitions allowed).
+
+| stack | members | CV | public LB |
+|---|---|---|---|
+| ours, with auxiliary-task members | 11 | 0.96150 | 0.96120 |
+| **+ 7 TabPFN-3.5 members** | 18 | **0.96179** (5/5 folds up) | **0.96140** (rank 139/847) |
+| + TabICL v2 as well | 19 | 0.96179 | not submitted |
