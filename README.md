@@ -128,3 +128,4 @@ non-commercial; Kaggle competitions allowed).
 | ours, with auxiliary-task members | 11 | 0.96150 | 0.96120 |
 | **+ 7 TabPFN-3.5 members** | 18 | **0.96179** (5/5 folds up) | **0.96140** (rank 139/847) |
 | + TabICL v2 as well | 19 | 0.96179 | not submitted |
+| + realmlp_pub_aux, cat_ctr, xgb_aux_d10 (Kaggle GPU) | 21 | 0.96183 | see submissions |
