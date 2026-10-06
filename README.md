@@ -111,5 +111,5 @@ cross-fitted XGBoost on a Kaggle GPU) and add the expected rating sum_k k*P(k) a
 | CatBoost | 0.96090 | 0.96101 | 4/5 |
 | LightGBM (local, `fe.py` variant `+aux`) | 0.96092 | 0.96108 | 5/5 |
 
-Stack: 0.96139 → **0.96150** (+0.00011, all five folds up, +0.00009 to +0.00012). Submitted 03:05 on
+Stack: 0.96139 → **0.96150** (+0.00011, all five folds up, +0.00009 to +0.00012); public LB 0.96097 → **0.96120**. Submitted 03:05 on
 2026-10-06 (`work/submit_at_0305.sh`; daily submissions reset at 00:00 UTC).
