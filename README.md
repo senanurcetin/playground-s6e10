@@ -131,3 +131,12 @@ non-commercial; Kaggle competitions allowed).
 | + realmlp_pub_aux, cat_ctr, xgb_aux_d10 (Kaggle GPU) | 21 | **0.96183** | **0.96150** (rank 135/889) |
 | + GLM-margin XGBoost x2, view-B RealMLP and XGBoost (`MEMBER_SET="glm"`) | 25 | **0.96185** | **0.96154** |
 | + RealMLP flat-anneal (all 30 aux), XGBoost (all 30 aux), CatBoost CTR depth 6 (`glm2`) | 28 | 0.96185 (no gain, 3/5 folds) | not submitted |
+| + view-B LightGBM (local `lgb_vb.py`, 0.96100 alone) | 26 | 0.96185 (no gain) | not submitted |
+
+**Saturation (2026-10-06).** After the 25-member stack, six more members (two rounds) moved the nested CV by
+less than 0.00001. Other combiners did not help either (`stack_alt.py`, nested): logistic regression 0.96185,
+the same with C=0.01 0.96185, non-negative hill climbing 0.96182, mean of logits 0.96175. The public reference
+stack of 48 members reaches 0.96192, and our 14 own members add nothing to it, so this feature set and these
+families are near their ceiling. The remaining gap to the public top-100 cut (0.00006) is below what the public
+LB can resolve. Final selection: 25-member stack (LB 0.96154) + 11-member stack without external members
+(LB 0.96120).
