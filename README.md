@@ -130,3 +130,4 @@ non-commercial; Kaggle competitions allowed).
 | + TabICL v2 as well | 19 | 0.96179 | not submitted |
 | + realmlp_pub_aux, cat_ctr, xgb_aux_d10 (Kaggle GPU) | 21 | **0.96183** | **0.96150** (rank 135/889) |
 | + GLM-margin XGBoost x2, view-B RealMLP and XGBoost (`MEMBER_SET="glm"`) | 25 | **0.96185** | **0.96154** |
+| + RealMLP flat-anneal (all 30 aux), XGBoost (all 30 aux), CatBoost CTR depth 6 (`glm2`) | 28 | 0.96185 (no gain, 3/5 folds) | not submitted |
