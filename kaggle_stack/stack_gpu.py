@@ -125,9 +125,9 @@ def target_encode(k_fit, y_fit, k_apply, smooth=20.0):
     return pd.Series(k_apply).map(enc).fillna(prior).values.astype(np.float32)
 
 
-def add_te(trn, y_trn, others):
+def add_te(trn, y_trn, others, keys=None):
     tr_cols, oth = {}, [dict() for _ in others]
-    for name, codes in KEYS.items():
+    for name, codes in (keys or KEYS).items():
         ka, col = codes[trn], np.zeros(len(trn), dtype=np.float32)
         for i, j in KFold(5, shuffle=True, random_state=0).split(ka):
             col[j] = target_encode(ka[i], y_trn[i], ka[j])
@@ -191,8 +191,8 @@ def aux_features():
 
 NN_RAW, NN_CATS = nn_frame(A)
 NN_V4, _ = nn_frame(pd.concat([A, OTE, OG, ROUTE, CNT], axis=1))
-MEMBER_SET = "more"   # "base": first five members; "aux": auxiliary-task members; "more": further diverse members
-if MEMBER_SET in ("aux", "more"):
+MEMBER_SET = "glm"    # "base" | "aux" | "more" | "glm": GLM-margin XGBoost and view-B members
+if MEMBER_SET in ("aux", "more", "glm"):
     AUX = aux_features()
     AUX.to_parquet(f"{OUT}/aux_features.parquet")    # also used by the local LightGBM
     EV = [c for c in AUX.columns if c.startswith("aux_ev_")]
@@ -206,6 +206,58 @@ if MEMBER_SET in ("aux", "more"):
     for c in NUMS + RATINGS:
         CTR[c + "_c"] = CTR[c].astype(int).astype(str)
         CTR_CATS.append(c + "_c")
+
+
+def key_of(df, cols):
+    code = np.zeros(len(df), dtype=np.int64)
+    for c in cols:
+        k = pd.factorize(df[c], use_na_sentinel=False)[0]
+        code = code * (k.max() + 1) + k
+    return pd.factorize(code)[0]
+
+
+if MEMBER_SET == "glm":
+    import itertools
+    # GLM keys (idea: goodpjw2008, Part 3): fold-safe target rates of columns, bins, strong pairs, segments
+    STRONG = ["Online boarding", "Inflight wifi service", "Class", "Type of Travel", "Customer Type",
+              "Inflight entertainment", "Seat comfort", "Leg room service", "On-board service",
+              "Baggage handling", "Checkin service", "Cleanliness", "Ease of Online booking"]
+    GA = A.assign(_fd10=A[FD] // 10, _fd100=A[FD] // 100, _age5=A["Age"] // 5,
+                  _dep=np.minimum(A["Departure Delay in Minutes"], 60) // 5,
+                  _arr=np.minimum(A["Arrival Delay in Minutes"].fillna(-5), 60) // 5)
+    SEG = ["Type of Travel", "Class", "Customer Type"]
+    glm_keys = ([[c] for c in FEATS] + [["_fd10"], ["_fd100"], ["_age5"], ["_dep"], ["_arr"]]
+                + [list(q) for q in itertools.combinations(STRONG, 2)]
+                + [SEG] + [SEG + [r] for r in RATINGS] + [["_age5"] + SEG, ["_fd100"] + SEG])
+    GKEY = {"g%03d" % i: key_of(GA, k) for i, k in enumerate(glm_keys)}
+    log(f"{len(GKEY)} GLM target-rate keys")
+
+    # view B (idea: goodpjw2008, Part 2): digits, GPT-2 tokens of the numbers, original target mean per value
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "tiktoken"], check=False)
+    import tiktoken
+    enc = tiktoken.get_encoding("gpt2")
+    VB = A.copy()
+    for c in CATS:
+        VB[c] = VB[c].astype("category").cat.codes
+    VB["og_logit"] = OG["og_logit"].values
+    VB["fd_mod10"], VB["fd_mod100"], VB["fd_div10"], VB["age_mod10"] = A[FD] % 10, A[FD] % 100, A[FD] // 10, A["Age"] % 10
+    for c in FEATS:
+        VB[f"om_{c}"] = A[c].map(og.groupby(c)[TARGET].mean()).astype(np.float32)
+    for c in NUMS:
+        col = A[c].fillna(-1).astype(int)
+        tok = {v: enc.encode(" " + str(v)) for v in col.unique()}
+        VB[f"tk1_{c}"] = col.map({v: s[0] for v, s in tok.items()}).values
+        VB[f"tkl_{c}"] = col.map({v: s[-1] for v, s in tok.items()}).values
+        VB[f"tkn_{c}"] = col.map({v: len(s) for v, s in tok.items()}).values
+    VB = pd.concat([VB, CNT, AUX[EV]], axis=1)
+    GB = A.assign(_fd10=A[FD] // 10, _fd100=A[FD] // 100, _fdm1000=A[FD] % 1000)
+    KEY_B = {"teb_%d" % i: key_of(GB, k) for i, k in enumerate(
+        [[FD], ["_fd10"], ["_fdm1000"], ["Age", "Class"], [FD, "Class"], ["Age", "Type of Travel"], ["_fd100", "Customer Type"]])}
+    VB_NN = VB.copy()
+    for c in CATS:
+        VB_NN[c] = A[c]
+    NN_VB, _ = nn_frame(VB_NN.fillna(0.0))
+    log(f"view B: {VB.shape[1]} columns")
 
 
 # ----------------------------------------------------------------------------- members
@@ -240,6 +292,58 @@ def fit_cat_ctr(Xa, ya, Xb, yb):
                            random_seed=42, cat_features=CTR_CATS, verbose=0, allow_writing_files=False)
     m.fit(to(Xa), ya, eval_set=(to(Xb), yb))
     return lambda X: m.predict_proba(to(X))[:, 1]
+
+
+def fit_xgb_b(Xa, ya, Xb, yb):
+    import xgboost as xgb
+    m = xgb.XGBClassifier(n_estimators=N_EST, learning_rate=0.02, max_depth=6, min_child_weight=5, subsample=0.8,
+                          colsample_bytree=0.5, reg_lambda=2.0, max_bin=1024, tree_method="hist", device=DEVICE,
+                          eval_metric="auc", early_stopping_rounds=ES, random_state=42)
+    m.fit(Xa, ya, eval_set=[(Xb, yb)], verbose=False)
+    return lambda X: m.predict_proba(X)[:, 1]
+
+
+def run_glm():
+    """GLM on logits of fold-safe target rates (+ the original-data model), then XGBoost boosted from its margin,
+    so the trees learn only what the linear model misses. Saves glm_xgb (depth 4) and glm6_xgb (depth 6)."""
+    import xgboost as xgb
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.preprocessing import StandardScaler
+    lgt4 = lambda q: np.log(np.clip(q, 1e-4, 1 - 1e-4) / (1 - np.clip(q, 1e-4, 1 - 1e-4)))
+    sig = lambda z: 1 / (1 + np.exp(-z))
+    Xtr, Xte = TREE_AUX.iloc[:NTR].reset_index(drop=True), TREE_AUX.iloc[NTR:].reset_index(drop=True)
+    test_idx, t0 = np.arange(NTR, len(A)), time.time()
+    og_l = OG["og_logit"].values
+    res = {d: [np.zeros(NTR), np.zeros(len(Xte)), []] for d in (4, 6)}
+    glm_oof = np.zeros(NTR)
+    for a, b in FOLDS:
+        Ga, (Gb, Gt) = add_te(a, y[a], [b, test_idx], keys=GKEY)
+        Ga, Gb, Gt = (np.column_stack([lgt4(G.values), og_l[idx]]) for G, idx in ((Ga, a), (Gb, b), (Gt, test_idx)))
+        sc = StandardScaler().fit(Ga)
+        glm = LogisticRegression(C=0.05, max_iter=400).fit(sc.transform(Ga), y[a])
+        ma, mb, mt = (glm.decision_function(sc.transform(G)) for G in (Ga, Gb, Gt))
+        glm_oof[b] = mb
+        ta, (tb, tt) = add_te(a, y[a], [b, test_idx])
+        Xa = pd.concat([Xtr.iloc[a].reset_index(drop=True), ta], axis=1)
+        Xb = pd.concat([Xtr.iloc[b].reset_index(drop=True), tb], axis=1)
+        Xt = pd.concat([Xte, tt], axis=1)
+        for depth in res:
+            m = xgb.XGBClassifier(n_estimators=N_EST, learning_rate=0.03, max_depth=depth, subsample=0.8,
+                                  colsample_bytree=0.5, min_child_weight=20, reg_lambda=5.0, tree_method="hist",
+                                  device=DEVICE, eval_metric="auc", early_stopping_rounds=ES,
+                                  enable_categorical=True, max_cat_to_onehot=1, random_state=42)
+            m.fit(Xa, y[a], base_margin=ma, eval_set=[(Xb, y[b])], base_margin_eval_set=[mb], verbose=False)
+            res[depth][0][b] = m.predict(Xb, base_margin=mb, output_margin=True)
+            res[depth][1] += m.predict(Xt, base_margin=mt, output_margin=True) / len(FOLDS)
+            res[depth][2].append(roc_auc_score(y[b], res[depth][0][b]))
+        if GPU:
+            torch.cuda.empty_cache()
+    log(f"GLM alone      OOF AUC {roc_auc_score(y, glm_oof):.5f} (not a member)")
+    for depth, name in ((4, "glm_xgb"), (6, "glm6_xgb")):
+        np.save(f"{OUT}/oof_{name}.npy", sig(res[depth][0]))
+        np.save(f"{OUT}/pred_{name}.npy", sig(res[depth][1]))
+        log(f"{name:14s} OOF AUC {roc_auc_score(y, res[depth][0]):.5f} folds {np.round(res[depth][2], 5).tolist()} "
+            f"({time.time() - t0:.0f}s)")
 
 
 def fit_xgb_d10(Xa, ya, Xb, yb):
@@ -281,7 +385,7 @@ def run(name, fit, X, use_te):
     for a, b in FOLDS:
         Xa, Xb, Xt = Xtr.iloc[a].reset_index(drop=True), Xtr.iloc[b].reset_index(drop=True), Xte
         if use_te:
-            ta, (tb, tt) = add_te(a, y[a], [b, test_idx])
+            ta, (tb, tt) = add_te(a, y[a], [b, test_idx], keys=use_te if isinstance(use_te, dict) else None)
             Xa, Xb, Xt = pd.concat([Xa, ta], axis=1), pd.concat([Xb, tb], axis=1), pd.concat([Xte, tt], axis=1)
         predict = fit(Xa, y[a], Xb, y[b])
         oof[b] = predict(Xb)
@@ -312,7 +416,16 @@ MEMBERS = {
         ("cat_ctr", fit_cat_ctr, CTR, False) if MEMBER_SET == "more" else None,
         ("xgb_aux_d10", fit_xgb_d10, TREE_AUX, True) if MEMBER_SET == "more" else None,
     ],
+    "glm": [
+        ("realmlp_vb_aux", fit_realmlp(91, n_epochs=3, lr_sched="flat_anneal"), NN_VB, KEY_B) if MEMBER_SET == "glm" else None,
+        ("xgb_vb_aux", fit_xgb_b, VB, KEY_B) if MEMBER_SET == "glm" else None,
+    ],
 }[MEMBER_SET]
+if MEMBER_SET == "glm":
+    try:
+        run_glm()
+    except Exception as e:
+        log(f"glm FAILED: {type(e).__name__}: {e}")
 for name, fit, X, use_te in MEMBERS:
     try:
         run(name, fit, X, use_te)
