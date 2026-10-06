@@ -64,6 +64,7 @@ y = tr[TARGET].astype(int).values
 NTR = len(tr)
 A = pd.concat([tr[FEATS], te[FEATS]], ignore_index=True)
 FOLDS = list(StratifiedKFold(5, shuffle=True, random_state=42).split(np.zeros(NTR), y))
+FOLDS10 = list(StratifiedKFold(10, shuffle=True, random_state=42).split(np.zeros(NTR), y))   # 10-fold members
 log(f"train {tr.shape} test {te.shape} original {og.shape} | GPU {GPU}")
 
 
@@ -193,8 +194,8 @@ def aux_features():
 
 NN_RAW, NN_CATS = nn_frame(A)
 NN_V4, _ = nn_frame(pd.concat([A, OTE, OG, ROUTE, CNT], axis=1))
-MEMBER_SET = "glm2"   # "base" | "aux" | "more" | "glm" | "glm2": all-30 aux members, shallower CatBoost CTR
-if MEMBER_SET in ("aux", "more", "glm", "glm2"):
+MEMBER_SET = "ten"    # "base" | "aux" | "more" | "glm" | "glm2" | "ten": 10-fold members + rating x context crosses
+if MEMBER_SET in ("aux", "more", "glm", "glm2", "ten"):
     AUX = aux_features()
     AUX.to_parquet(f"{OUT}/aux_features.parquet")    # also used by the local LightGBM
     EV = [c for c in AUX.columns if c.startswith("aux_ev_")]
@@ -208,6 +209,12 @@ if MEMBER_SET in ("aux", "more", "glm", "glm2"):
     for c in NUMS + RATINGS:
         CTR[c + "_c"] = CTR[c].astype(int).astype(str)
         CTR_CATS.append(c + "_c")
+    # each rating crossed with the passenger context (idea: Shelton Wang, S6E10 discussion "39 Simple Crosses")
+    CTRX, CTRX_CATS = CTR.copy(), list(CTR_CATS)
+    for r in RATINGS:
+        for b in ("Class", "Type of Travel", "Customer Type"):
+            CTRX[f"{r}_x_{b}"] = CTRX[r + "_c"] + "|" + A[b].astype(str)
+            CTRX_CATS.append(f"{r}_x_{b}")
 
 
 def key_of(df, cols):
@@ -352,6 +359,16 @@ def run_glm():
             f"({time.time() - t0:.0f}s)")
 
 
+def fit_cat_ctrx(Xa, ya, Xb, yb):
+    from catboost import CatBoostClassifier
+    to = lambda X: X.astype({c: str for c in CTRX_CATS})
+    m = CatBoostClassifier(iterations=N_EST, learning_rate=0.05, depth=6, l2_leaf_reg=3.0, border_count=254,
+                           task_type="GPU" if GPU else "CPU", eval_metric="Logloss", early_stopping_rounds=ES,
+                           random_seed=42, cat_features=CTRX_CATS, verbose=0, allow_writing_files=False)
+    m.fit(to(Xa), ya, eval_set=(to(Xb), yb))
+    return lambda X: m.predict_proba(to(X))[:, 1]
+
+
 def fit_cat_ctr3(Xa, ya, Xb, yb):
     from catboost import CatBoostClassifier
     to = lambda X: X.astype({c: str for c in CTR_CATS})
@@ -404,18 +421,19 @@ def fit_realmlp(seed=42, **over):
     return fit
 
 
-def run(name, fit, X, use_te):
+def run(name, fit, X, use_te, folds=None):
+    folds = folds or FOLDS
     Xtr, Xte = X.iloc[:NTR].reset_index(drop=True), X.iloc[NTR:].reset_index(drop=True)
     oof, tst, aucs, t0 = np.zeros(NTR), np.zeros(len(Xte)), [], time.time()
     test_idx = np.arange(NTR, len(X))
-    for a, b in FOLDS:
+    for a, b in folds:
         Xa, Xb, Xt = Xtr.iloc[a].reset_index(drop=True), Xtr.iloc[b].reset_index(drop=True), Xte
         if use_te:
             ta, (tb, tt) = add_te(a, y[a], [b, test_idx], keys=use_te if isinstance(use_te, dict) else None)
             Xa, Xb, Xt = pd.concat([Xa, ta], axis=1), pd.concat([Xb, tb], axis=1), pd.concat([Xte, tt], axis=1)
         predict = fit(Xa, y[a], Xb, y[b])
         oof[b] = predict(Xb)
-        tst += predict(Xt) / len(FOLDS)
+        tst += predict(Xt) / len(folds)
         aucs.append(roc_auc_score(y[b], oof[b]))
         if GPU:
             torch.cuda.empty_cache()
@@ -442,6 +460,12 @@ MEMBERS = {
         ("cat_ctr", fit_cat_ctr, CTR, False) if MEMBER_SET == "more" else None,
         ("xgb_aux_d10", fit_xgb_d10, TREE_AUX, True) if MEMBER_SET == "more" else None,
     ],
+    "ten": [
+        ("cat_ctrx", fit_cat_ctrx, CTRX, False, None) if MEMBER_SET == "ten" else None,
+        ("xgb_aux_10f", fit_xgb, TREE_AUX, True, FOLDS10) if MEMBER_SET == "ten" else None,
+        ("realmlp_aux_10f", fit_realmlp(42, n_epochs=6), NN_AUX, True, FOLDS10) if MEMBER_SET == "ten" else None,
+        ("cat_ctrx_10f", fit_cat_ctrx, CTRX, False, FOLDS10) if MEMBER_SET == "ten" else None,
+    ],
     "glm2": [
         ("realmlp_fa_aux", fit_realmlp(23, n_epochs=4, lr_sched="flat_anneal"), NN_FA_AUX, False) if MEMBER_SET == "glm2" else None,
         ("xgb_auxall", fit_xgb_s1, TREE_AUXALL, True) if MEMBER_SET == "glm2" else None,
@@ -457,9 +481,9 @@ if MEMBER_SET == "glm":                          # (glm2 skips the GLM members)
         run_glm()
     except Exception as e:
         log(f"glm FAILED: {type(e).__name__}: {e}")
-for name, fit, X, use_te in MEMBERS:
+for name, fit, X, use_te, *rest in MEMBERS:
     try:
-        run(name, fit, X, use_te)
+        run(name, fit, X, use_te, *(rest or [None]))
     except Exception as e:                            # one failing member must not lose the others
         log(f"{name} FAILED: {type(e).__name__}: {e}")
 np.save(f"{OUT}/y.npy", y)
