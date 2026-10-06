@@ -191,13 +191,21 @@ def aux_features():
 
 NN_RAW, NN_CATS = nn_frame(A)
 NN_V4, _ = nn_frame(pd.concat([A, OTE, OG, ROUTE, CNT], axis=1))
-MEMBER_SET = "aux"                 # "base": the first five members; "aux": members with auxiliary-task features
-if MEMBER_SET == "aux":
+MEMBER_SET = "more"   # "base": first five members; "aux": auxiliary-task members; "more": further diverse members
+if MEMBER_SET in ("aux", "more"):
     AUX = aux_features()
     AUX.to_parquet(f"{OUT}/aux_features.parquet")    # also used by the local LightGBM
     EV = [c for c in AUX.columns if c.startswith("aux_ev_")]
     TREE_AUX = pd.concat([TREE, AUX[EV]], axis=1)
     NN_AUX, _ = nn_frame(pd.concat([A, OTE, OG, ROUTE, CNT, AUX[EV]], axis=1))
+    NN_PUB_AUX, _ = nn_frame(pd.concat([A, AUX[EV]], axis=1))     # public recipe + expected ratings
+    # CatBoost with every numeric and rating column also as a categorical (its own ordered target statistics)
+    CTR = pd.concat([A, OG[["og_logit"]], ROUTE, CNT, AUX[EV]], axis=1)
+    CTR["Arrival Delay in Minutes"] = CTR["Arrival Delay in Minutes"].fillna(-1)
+    CTR_CATS = list(CATS)
+    for c in NUMS + RATINGS:
+        CTR[c + "_c"] = CTR[c].astype(int).astype(str)
+        CTR_CATS.append(c + "_c")
 
 
 # ----------------------------------------------------------------------------- members
@@ -222,6 +230,26 @@ def fit_cat(Xa, ya, Xb, yb):
                            random_seed=42, cat_features=CATS, verbose=0, allow_writing_files=False)
     m.fit(to(Xa), ya, eval_set=(to(Xb), yb))
     return lambda X: m.predict_proba(to(X))[:, 1]
+
+
+def fit_cat_ctr(Xa, ya, Xb, yb):
+    from catboost import CatBoostClassifier
+    to = lambda X: X.astype({c: str for c in CTR_CATS})
+    m = CatBoostClassifier(iterations=N_EST, learning_rate=0.05, depth=7, l2_leaf_reg=10.0, border_count=254,
+                           task_type="GPU" if GPU else "CPU", eval_metric="Logloss", early_stopping_rounds=ES,
+                           random_seed=42, cat_features=CTR_CATS, verbose=0, allow_writing_files=False)
+    m.fit(to(Xa), ya, eval_set=(to(Xb), yb))
+    return lambda X: m.predict_proba(to(X))[:, 1]
+
+
+def fit_xgb_d10(Xa, ya, Xb, yb):
+    import xgboost as xgb
+    m = xgb.XGBClassifier(n_estimators=N_EST, learning_rate=0.02, max_depth=10, subsample=0.8, colsample_bytree=0.5,
+                          min_child_weight=20, reg_lambda=1.0, max_bin=256, tree_method="hist", device=DEVICE,
+                          eval_metric="auc", early_stopping_rounds=ES, enable_categorical=True, max_cat_to_onehot=1,
+                          random_state=2)
+    m.fit(Xa, ya, eval_set=[(Xb, yb)], verbose=False)
+    return lambda X: m.predict_proba(X)[:, 1]
 
 
 REALMLP = dict(n_ens=8, n_epochs=3, batch_size=256, use_early_stopping=False,
@@ -278,6 +306,11 @@ MEMBERS = {
         ("xgb_aux", fit_xgb, TREE_AUX, True) if MEMBER_SET == "aux" else None,
         ("realmlp_aux", fit_realmlp(42, n_epochs=6), NN_AUX, True) if MEMBER_SET == "aux" else None,
         ("cat_aux", fit_cat, TREE_AUX, True) if MEMBER_SET == "aux" else None,
+    ],
+    "more": [
+        ("realmlp_pub_aux", fit_realmlp(42, n_epochs=6), NN_PUB_AUX, False) if MEMBER_SET == "more" else None,
+        ("cat_ctr", fit_cat_ctr, CTR, False) if MEMBER_SET == "more" else None,
+        ("xgb_aux_d10", fit_xgb_d10, TREE_AUX, True) if MEMBER_SET == "more" else None,
     ],
 }[MEMBER_SET]
 for name, fit, X, use_te in MEMBERS:
