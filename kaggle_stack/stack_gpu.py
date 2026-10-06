@@ -181,18 +181,20 @@ def aux_features():
                                   objective="multi:softprob" if k > 2 else "binary:logistic")
             m.fit(coded.iloc[a][others], yc[a])
             P[b] = m.predict_proba(coded.iloc[b][others])
+        out[f"aux_p_{c}"] = P[np.arange(len(A)), yc]
         if c in RATINGS:
             out[f"aux_ev_{c}"] = P @ values.astype(np.float32)
         else:
             out[f"aux_p1_{c}"] = P[:, -1] if k == 2 else P @ np.arange(k, dtype=np.float32)
         log(f"aux {c:34s} accuracy {(P.argmax(1) == yc).mean():.3f}")
+    out["aux_sum_logp"] = np.log(np.clip(out[[c for c in out.columns if c.startswith("aux_p_")]].values, 1e-6, 1)).sum(1)
     return out.astype(np.float32)
 
 
 NN_RAW, NN_CATS = nn_frame(A)
 NN_V4, _ = nn_frame(pd.concat([A, OTE, OG, ROUTE, CNT], axis=1))
-MEMBER_SET = "glm"    # "base" | "aux" | "more" | "glm": GLM-margin XGBoost and view-B members
-if MEMBER_SET in ("aux", "more", "glm"):
+MEMBER_SET = "glm2"   # "base" | "aux" | "more" | "glm" | "glm2": all-30 aux members, shallower CatBoost CTR
+if MEMBER_SET in ("aux", "more", "glm", "glm2"):
     AUX = aux_features()
     AUX.to_parquet(f"{OUT}/aux_features.parquet")    # also used by the local LightGBM
     EV = [c for c in AUX.columns if c.startswith("aux_ev_")]
@@ -216,7 +218,7 @@ def key_of(df, cols):
     return pd.factorize(code)[0]
 
 
-if MEMBER_SET == "glm":
+if MEMBER_SET in ("glm", "glm2"):
     import itertools
     # GLM keys (idea: goodpjw2008, Part 3): fold-safe target rates of columns, bins, strong pairs, segments
     STRONG = ["Online boarding", "Inflight wifi service", "Class", "Type of Travel", "Customer Type",
@@ -258,6 +260,10 @@ if MEMBER_SET == "glm":
         VB_NN[c] = A[c]
     NN_VB, _ = nn_frame(VB_NN.fillna(0.0))
     log(f"view B: {VB.shape[1]} columns")
+    VB.assign(**{k: v for k, v in KEY_B.items()}).to_parquet(f"{OUT}/view_b.parquet")   # for the local LightGBM
+    AUXALL = AUX[[c for c in AUX.columns if c.startswith(("aux_ev_", "aux_p_", "aux_sum"))]]
+    NN_FA_AUX, _ = nn_frame(pd.concat([A, AUXALL], axis=1))
+    TREE_AUXALL = pd.concat([TREE, AUXALL], axis=1)
 
 
 # ----------------------------------------------------------------------------- members
@@ -346,6 +352,26 @@ def run_glm():
             f"({time.time() - t0:.0f}s)")
 
 
+def fit_cat_ctr3(Xa, ya, Xb, yb):
+    from catboost import CatBoostClassifier
+    to = lambda X: X.astype({c: str for c in CTR_CATS})
+    m = CatBoostClassifier(iterations=N_EST, learning_rate=0.05, depth=6, l2_leaf_reg=10.0, border_count=254,
+                           task_type="GPU" if GPU else "CPU", eval_metric="Logloss", early_stopping_rounds=ES,
+                           random_seed=3, cat_features=CTR_CATS, verbose=0, allow_writing_files=False)
+    m.fit(to(Xa), ya, eval_set=(to(Xb), yb))
+    return lambda X: m.predict_proba(to(X))[:, 1]
+
+
+def fit_xgb_s1(Xa, ya, Xb, yb):
+    import xgboost as xgb
+    m = xgb.XGBClassifier(n_estimators=N_EST, learning_rate=0.02, max_depth=7, subsample=0.8, colsample_bytree=0.4,
+                          min_child_weight=5, reg_lambda=1.0, max_bin=256, tree_method="hist", device=DEVICE,
+                          eval_metric="auc", early_stopping_rounds=ES, enable_categorical=True, max_cat_to_onehot=1,
+                          random_state=1)
+    m.fit(Xa, ya, eval_set=[(Xb, yb)], verbose=False)
+    return lambda X: m.predict_proba(X)[:, 1]
+
+
 def fit_xgb_d10(Xa, ya, Xb, yb):
     import xgboost as xgb
     m = xgb.XGBClassifier(n_estimators=N_EST, learning_rate=0.02, max_depth=10, subsample=0.8, colsample_bytree=0.5,
@@ -416,12 +442,17 @@ MEMBERS = {
         ("cat_ctr", fit_cat_ctr, CTR, False) if MEMBER_SET == "more" else None,
         ("xgb_aux_d10", fit_xgb_d10, TREE_AUX, True) if MEMBER_SET == "more" else None,
     ],
+    "glm2": [
+        ("realmlp_fa_aux", fit_realmlp(23, n_epochs=4, lr_sched="flat_anneal"), NN_FA_AUX, False) if MEMBER_SET == "glm2" else None,
+        ("xgb_auxall", fit_xgb_s1, TREE_AUXALL, True) if MEMBER_SET == "glm2" else None,
+        ("cat_ctr3", fit_cat_ctr3, CTR, False) if MEMBER_SET == "glm2" else None,
+    ],
     "glm": [
         ("realmlp_vb_aux", fit_realmlp(91, n_epochs=3, lr_sched="flat_anneal"), NN_VB, KEY_B) if MEMBER_SET == "glm" else None,
         ("xgb_vb_aux", fit_xgb_b, VB, KEY_B) if MEMBER_SET == "glm" else None,
     ],
 }[MEMBER_SET]
-if MEMBER_SET == "glm":
+if MEMBER_SET == "glm":                          # (glm2 skips the GLM members)
     try:
         run_glm()
     except Exception as e:
