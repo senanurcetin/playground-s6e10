@@ -194,8 +194,8 @@ def aux_features():
 
 NN_RAW, NN_CATS = nn_frame(A)
 NN_V4, _ = nn_frame(pd.concat([A, OTE, OG, ROUTE, CNT], axis=1))
-MEMBER_SET = "ten"    # "base" | "aux" | "more" | "glm" | "glm2" | "ten": 10-fold members + rating x context crosses
-if MEMBER_SET in ("aux", "more", "glm", "glm2", "ten"):
+MEMBER_SET = "ten2"   # "base" | "aux" | "more" | "glm" | "glm2" | "ten" | "ten2": more 10-fold members
+if MEMBER_SET in ("aux", "more", "glm", "glm2", "ten", "ten2"):
     AUX = aux_features()
     AUX.to_parquet(f"{OUT}/aux_features.parquet")    # also used by the local LightGBM
     EV = [c for c in AUX.columns if c.startswith("aux_ev_")]
@@ -225,7 +225,7 @@ def key_of(df, cols):
     return pd.factorize(code)[0]
 
 
-if MEMBER_SET in ("glm", "glm2"):
+if MEMBER_SET in ("glm", "glm2", "ten2"):
     import itertools
     # GLM keys (idea: goodpjw2008, Part 3): fold-safe target rates of columns, bins, strong pairs, segments
     STRONG = ["Online boarding", "Inflight wifi service", "Class", "Type of Travel", "Customer Type",
@@ -459,6 +459,12 @@ MEMBERS = {
         ("realmlp_pub_aux", fit_realmlp(42, n_epochs=6), NN_PUB_AUX, False) if MEMBER_SET == "more" else None,
         ("cat_ctr", fit_cat_ctr, CTR, False) if MEMBER_SET == "more" else None,
         ("xgb_aux_d10", fit_xgb_d10, TREE_AUX, True) if MEMBER_SET == "more" else None,
+    ],
+    "ten2": [
+        ("realmlp_vb_aux_10f", fit_realmlp(91, n_epochs=3, lr_sched="flat_anneal"), NN_VB, KEY_B, FOLDS10) if MEMBER_SET == "ten2" else None,
+        ("xgb_vb_aux_10f", fit_xgb_b, VB, KEY_B, FOLDS10) if MEMBER_SET == "ten2" else None,
+        ("realmlp_pub_aux_10f", fit_realmlp(42, n_epochs=6), NN_PUB_AUX, False, FOLDS10) if MEMBER_SET == "ten2" else None,
+        ("xgb_auxall_10f", fit_xgb_s1, TREE_AUXALL, True, FOLDS10) if MEMBER_SET == "ten2" else None,
     ],
     "ten": [
         ("cat_ctrx", fit_cat_ctrx, CTRX, False, None) if MEMBER_SET == "ten" else None,
