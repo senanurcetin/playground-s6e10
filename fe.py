@@ -212,11 +212,11 @@ def screen(variants):
         print(line, flush=True)
 
 
-def full(variant, tag):
+def full(variant, tag, folds=5):
     X, y, Xt, orig, target, *_ = load_all()
     F, Ft, keys = build(X, Xt, orig, target, variant)
     t0 = time.time()
-    oof, pred, fa = cv(F, y, Ft, lr=0.03, return_pred=True, keys=keys, max_bin=max_bin_of(variant))
+    oof, pred, fa = cv(F, y, Ft, lr=0.03, folds=folds, return_pred=True, keys=keys, max_bin=max_bin_of(variant))
     P.OUT.joinpath("oof").mkdir(parents=True, exist_ok=True); P.OUT.joinpath("pred").mkdir(exist_ok=True)
     np.save(P.OUT / "oof" / f"lgb{tag}.npy", oof); np.save(P.OUT / "pred" / f"lgb{tag}.npy", pred)
     print(f"lgb{tag} ({variant}): CV {roc_auc_score(y, oof):.5f} folds {np.round(fa, 5).tolist()} ({time.time() - t0:.0f}s)", flush=True)
@@ -228,5 +228,6 @@ if __name__ == "__main__":
     ap.add_argument("--variants", default="base,agg,catr,ote,ote2,all")
     ap.add_argument("--variant", default="all")
     ap.add_argument("--tag", default="_fe")
+    ap.add_argument("--folds", type=int, default=5)
     a = ap.parse_args()
-    screen(a.variants.split(",")) if a.cmd == "screen" else full(a.variant, a.tag)
+    screen(a.variants.split(",")) if a.cmd == "screen" else full(a.variant, a.tag, a.folds)

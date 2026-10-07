@@ -155,3 +155,4 @@ gains from each rating crossed with Class / Type of Travel / Customer Type (Shel
 | stack | members | CV | public LB |
 |---|---|---|---|
 | **+ the four members above** | 29 | **0.96192** (5/5 folds up) | **0.96158** |
+| + 10-fold view-B RealMLP/XGBoost, RealMLP public+aux, XGBoost all-30 (`ten2`) | 33 | 0.96192 (no gain) | not submitted |
