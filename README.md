@@ -157,3 +157,14 @@ gains from each rating crossed with Class / Type of Travel / Customer Type (Shel
 | **+ the four members above** | 29 | **0.96192** (5/5 folds up) | **0.96158** |
 | + 10-fold view-B RealMLP/XGBoost, RealMLP public+aux, XGBoost all-30 (`ten2`) | 33 | 0.96192 (no gain) | not submitted |
 | + 10-fold LightGBM (local, 0.96122 alone) | 30 | 0.96192 (no gain) | not submitted |
+
+### Public tabular-foundation-model members (2026-10-07)
+
+Chris Deotte's public dataset [s6e10-tfm-oof-and-test-predictions](https://www.kaggle.com/datasets/cdeotte/s6e10-tfm-oof-and-test-predictions)
+holds OOF/test predictions of nine tabular foundation models (TabPFN-3.5, TabICL-2, Mitra-2, LimiX-2, KumoRFM
+large/small, EXAONE, CausiLo, TabFM) on the same folds. Like TabPFN above, they need hardware we do not have, so
+only these nine are added (not his collection of other people's members). Thank you, Chris Deotte.
+
+| stack | members | CV | public LB |
+|---|---|---|---|
+| ours (29) + 9 public TFM members | 38 | **0.96198** (5/5 folds up) | **0.96167** |
