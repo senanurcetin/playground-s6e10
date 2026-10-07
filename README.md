@@ -171,3 +171,9 @@ only these nine are added (not his collection of other people's members). Thank 
 | ours (29) + 9 TFM + 124 public members collected by Chris Deotte (`stack_all.py`) | 162 | **0.96209** | **0.96176** |
 | the same, C=0.01 and near-duplicates pruned (`stack_tune.py`, nested CV only) | 123 | **0.962105** | **0.96177** (rank 23/1045) |
 | + sachith7 xgb_A_auxall + amanatar forge pairs (`stack_new.py`) | 169 | 0.962110 (+0.000006, 4/5) | 0.96176 |
+
+**Combiner and final selection (2026-10-08).** S6E9's discussion reports a strong private shakeup in which
+CV-selected submissions rose and public-LB-tuned ones fell, and hill climbing was the most robust combiner there.
+Here non-negative hill climbing over all 169 members (`stack_hill.py`, nested) reaches only 0.961837 against
+0.962110 for logistic regression, so it is not used. Final pair: the tuned 123-member stack (LB 0.96177) and,
+as the hedge against possibly leaky public OOFs, our 29 members + 9 TFMs (CV 0.96198, LB 0.96167).
