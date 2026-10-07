@@ -140,3 +140,18 @@ stack of 48 members reaches 0.96192, and our 14 own members add nothing to it, s
 families are near their ceiling. The remaining gap to the public top-100 cut (0.00006) is below what the public
 LB can resolve. Final selection: 25-member stack (LB 0.96154) + 11-member stack without external members
 (LB 0.96120).
+
+### 10-fold members and rating x context crosses (2026-10-07, `MEMBER_SET="ten"`)
+
+Ideas from the S6E10 discussion: 10-fold members add to a saturated stack (Kratosyan, #746148), and CatBoost
+gains from each rating crossed with Class / Type of Travel / Customer Type (Shelton Wang, #745892).
+
+| member | OOF AUC | 5-fold counterpart |
+|---|---|---|
+| CatBoost CTR + 39 rating x context crosses, 10 folds | **0.96137** | 0.96122 (5 folds), 0.96109 (no crosses) |
+| XGBoost with expected ratings, 10 folds | 0.96133 | 0.96116 |
+| RealMLP with expected ratings, 10 folds | 0.96121 | 0.96118 |
+
+| stack | members | CV | public LB |
+|---|---|---|---|
+| **+ the four members above** | 29 | **0.96192** (5/5 folds up) | **0.96158** |
