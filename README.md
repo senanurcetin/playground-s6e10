@@ -168,3 +168,4 @@ only these nine are added (not his collection of other people's members). Thank 
 | stack | members | CV | public LB |
 |---|---|---|---|
 | ours (29) + 9 public TFM members | 38 | **0.96198** (5/5 folds up) | **0.96167** |
+| ours (29) + 9 TFM + 124 public members collected by Chris Deotte (`stack_all.py`) | 162 | **0.96209** | **0.96176** |
