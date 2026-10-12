@@ -1,20 +1,29 @@
-# Playground S6E10 — launch-day kit
+# Kaggle Playground S6E10 — Airline Satisfaction Modeling
 
-Generic tabular pipeline (`pipeline.py`), tested end to end on synthetic data.
+**Tabular classification · Adversarial validation · Out-of-fold stacking · Reproducible experiment log**
 
-## Launch day (competition opens 2026-10-01)
-1. Join the competition on Kaggle (rules must be accepted by you).
-2. `kaggle competitions download -c playground-series-s6e10 -p C:/Users/MONSTER/kaggle-data/playground-series-s6e10` and unzip.
+This repository documents the October 2026 Kaggle Playground S6E10 competition work. It contains a general-purpose starter pipeline (`pipeline.py`) and experiment results. **Leaderboard scores and ranks below are dated public snapshots, not private/final validation results.**
+
+## Reproduce the starter pipeline
+1. Join the competition on Kaggle and accept its rules (required to download data).
+2. Download the CSV files to a folder of your choice and set `DATA` to the folder containing `train.csv`, `test.csv` and `sample_submission.csv`. For example, on macOS/Linux:
+   ```bash
+   mkdir -p ./local-data
+   kaggle competitions download -c playground-series-s6e10 -p ./local-data
+   unzip ./local-data/playground-series-s6e10.zip -d ./local-data
+   export DATA="$(pwd)/local-data"
+   ```
+   On PowerShell use `$env:DATA = (Resolve-Path ./local-data).Path`.
 3. `python pipeline.py check` — schema, task, default metric, **adversarial validation** (AUC ≈ 0.5 ⇒ CV transfers).
    Set `METRIC=<name>` if the competition metric differs (auc, logloss, rmse, rmsle, accuracy).
 4. `python pipeline.py train --models lgb,xgb,cat` (add `--original PATH` once the source dataset is identified —
    original rows only ever train, never score).
 5. `python pipeline.py blend` → `work/submission.csv`; submit.
-   (Steps 2–5 in one go for a fast LightGBM baseline: `bash launch.sh`.)
+   (`launch.sh` is a contributor-specific helper: it assumes a local Windows data path and a virtual environment from another repository. Adapt it, or run the `pipeline.py` commands above.)
 6. Early public notebook: `python build_notebook.py` → "S6E10: Will Your CV Transfer? Adversarial Validation First" (tested; week 1 is when votes happen)
    — fits the honest-validation niche.
 
-Data stays outside OneDrive: `C:/Users/MONSTER/kaggle-data/<competition>/`.
+**Data note:** Keep Kaggle CSV files out of version control. `pipeline.py` includes a machine-specific fallback data path, so set `DATA` explicitly.
 
 ## Leaderboard snapshot policy
 
