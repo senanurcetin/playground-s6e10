@@ -16,6 +16,15 @@ Generic tabular pipeline (`pipeline.py`), tested end to end on synthetic data.
 
 Data stays outside OneDrive: `C:/Users/MONSTER/kaggle-data/<competition>/`.
 
+## Leaderboard snapshot policy
+
+The portfolio documents a public-leaderboard snapshot dated **8 October 2026**:
+**0.96177 ROC-AUC, rank 34 of 1,126**. A different, undated snapshot in the
+experiments table below recorded **rank 23 of 1,045** for the same 0.96177
+submission. Team counts and ranks move during a competition; these are **not
+final standings**. The competition ends on **31 October 2026**. The model
+score and validation protocol are the comparable technical results.
+
 ## Results log (Predicting Airline Satisfaction, AUC, ends 2026-10-31)
 
 | submission | CV AUC | public LB |
@@ -169,7 +178,7 @@ only these nine are added (not his collection of other people's members). Thank 
 |---|---|---|---|
 | ours (29) + 9 public TFM members | 38 | **0.96198** (5/5 folds up) | **0.96167** |
 | ours (29) + 9 TFM + 124 public members collected by Chris Deotte (`stack_all.py`) | 162 | **0.96209** | **0.96176** |
-| the same, C=0.01 and near-duplicates pruned (`stack_tune.py`, nested CV only) | 123 | **0.962105** | **0.96177** (rank 23/1045) |
+| the same, C=0.01 and near-duplicates pruned (`stack_tune.py`, nested CV only) | 123 | **0.962105** | **0.96177** (rank 23/1045; undated snapshot) |
 | + sachith7 xgb_A_auxall + amanatar forge pairs (`stack_new.py`) | 169 | 0.962110 (+0.000006, 4/5) | 0.96176 |
 
 **Combiner and final selection (2026-10-08).** S6E9's discussion reports a strong private shakeup in which
