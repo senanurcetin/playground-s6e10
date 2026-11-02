@@ -4,6 +4,9 @@
 
 This repository documents the October 2026 Kaggle Playground S6E10 competition work. It contains a general-purpose starter pipeline (`pipeline.py`) and experiment results. **Leaderboard scores and ranks below are dated public snapshots, not private/final validation results.**
 
+
+**Reuse boundary:** This repository has no top-level `LICENSE` file. The Kaggle competition dataset and any external source material have independent terms; GitHub visibility is not a general redistribution license. These are historical experiment logs, not a maintained production classifier.
+
 ## Reproduce the starter pipeline
 1. Join the competition on Kaggle and accept its rules (required to download data).
 2. Download the CSV files to a folder of your choice and set `DATA` to the folder containing `train.csv`, `test.csv` and `sample_submission.csv`. For example, on macOS/Linux:
@@ -31,10 +34,10 @@ The portfolio documents a public-leaderboard snapshot dated **8 October 2026**:
 **0.96177 ROC-AUC, rank 34 of 1,126**. A different, undated snapshot in the
 experiments table below recorded **rank 23 of 1,045** for the same 0.96177
 submission. Team counts and ranks move during a competition; these are **not
-final standings**. The competition ends on **31 October 2026**. The model
+final standings**. The competition **ended on 31 October 2026**; no final/private leaderboard placement has been independently verified here. The model
 score and validation protocol are the comparable technical results.
 
-## Results log (Predicting Airline Satisfaction, AUC, ends 2026-10-31)
+## Results log (Predicting Airline Satisfaction, AUC; competition closed 2026-10-31)
 
 | submission | CV AUC | public LB |
 |---|---|---|
