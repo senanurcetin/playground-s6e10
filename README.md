@@ -5,7 +5,7 @@
 This repository documents the October 2026 Kaggle Playground S6E10 competition work. It contains a general-purpose starter pipeline (`pipeline.py`) and experiment results. **Leaderboard scores and ranks below are dated public snapshots, not private/final validation results.**
 
 
-**Reuse boundary:** This repository has no top-level `LICENSE` file. The Kaggle competition dataset and any external source material have independent terms; GitHub visibility is not a general redistribution license. These are historical experiment logs, not a maintained production classifier.
+**License:** code is [MIT](LICENSE). The Kaggle competition data is not included and stays under the competition's own terms. These are historical experiment logs, not a maintained production classifier.
 
 ## Reproduce the starter pipeline
 1. Join the competition on Kaggle and accept its rules (required to download data).
