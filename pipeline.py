@@ -11,7 +11,6 @@ reported CV is the number to trust — and adversarial validation says how far t
 import argparse
 import json
 import os
-import sys
 import time
 from pathlib import Path
 
@@ -30,7 +29,7 @@ SEED = 42
 def load():
     tr, te = pd.read_csv(DATA / "train.csv"), pd.read_csv(DATA / "test.csv")
     ss = pd.read_csv(DATA / "sample_submission.csv")
-    id_col, target = ss.columns[0], ss.columns[1] if ss.shape[1] == 2 else None
+    id_col = ss.columns[0]
     targets = list(ss.columns[1:])
     return tr, te, ss, id_col, targets
 
